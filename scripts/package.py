@@ -14,7 +14,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 YTDLP_VERSION = "2026.08.19"
 YTDLP_SHA256 = "0f192b7ec147ab6288885d6351d9ab67367640029b4377576ef46dd79cf7b202"
 
@@ -142,7 +142,7 @@ def package(args):
         plistlib.dump({
             "CFBundleName": "Peak", "CFBundleDisplayName": "Peak", "CFBundleExecutable": "Peak",
             "CFBundleIdentifier": "io.github.seth-person.peak", "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": VERSION, "CFBundleVersion": "2",
+            "CFBundleShortVersionString": VERSION, "CFBundleVersion": "3",
             "CFBundleIconFile": "Peak", "LSMinimumSystemVersion": min_os,
             "NSHighResolutionCapable": True, "NSHumanReadableCopyright": "Copyright © 2026 Seth Person",
         }, stream)

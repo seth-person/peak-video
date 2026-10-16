@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import PeakCore
+import UniformTypeIdentifiers
 
 @MainActor
 final class DownloadModel: ObservableObject {
@@ -18,6 +19,7 @@ final class DownloadModel: ObservableObject {
     @Published var completed: URL?
     @Published var log = ""
     @Published var showDetails = false
+    @Published var editor: TrimModel?
     private var runner: ProcessRunner?
     private var operationID = UUID()
 
@@ -42,6 +44,13 @@ final class DownloadModel: ObservableObject {
             directory = url
             UserDefaults.standard.set(url.path, forKey: "downloadDirectory")
         }
+    }
+
+    func openTrim(_ file: URL? = nil) {
+        if let file { editor = TrimModel(file: file, tools: tools); return }
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.movie]; panel.allowsMultipleSelection = false
+        panel.prompt = "Open in trim editor"
+        if panel.runModal() == .OK, let url = panel.url { editor = TrimModel(file: url, tools: tools) }
     }
 
     func clearPreview() { info = nil; completed = nil; error = nil; progress = nil; status = "Ready when you are" }
@@ -127,7 +136,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         MainActor.assumeIsolated {
-            guard let model, model.busy else { return .terminateNow }
+            guard let model else { return .terminateNow }
+            if let editor = model.editor, editor.exporting {
+                let alert = NSAlert(); alert.messageText = "Cancel the current export and quit?"
+                alert.informativeText = "The unfinished clip will be removed. Your original stays unchanged."
+                alert.addButton(withTitle: "Keep exporting"); alert.addButton(withTitle: "Cancel and quit")
+                guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+                editor.cancelExport()
+                Task { @MainActor in
+                    while editor.exporting { try? await Task.sleep(nanoseconds: 100_000_000) }
+                    editor.close(); NSApplication.shared.reply(toApplicationShouldTerminate: true)
+                }
+                return .terminateLater
+            }
+            guard model.busy else { model.editor?.close(); return .terminateNow }
             let alert = NSAlert()
             alert.messageText = "Cancel the current download and quit?"
             alert.informativeText = "Partial downloads stay in your save folder and can resume when you retry."
@@ -185,6 +207,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
         }
         .background(canvasColor).frame(minWidth: 740, minHeight: 740)
+        .sheet(item: $model.editor) { TrimEditor(model: $0) }
         .onChange(of: model.link) { _, _ in model.clearPreview() }
         .onChange(of: model.mode) { _, _ in model.clearPreview() }
         .onChange(of: model.output) { _, _ in model.clearPreview() }
@@ -304,6 +327,9 @@ struct ContentView: View {
                         .keyboardShortcut(.return, modifiers: .command)
                         if model.busy { Button("Cancel") { model.cancel() }.buttonStyle(.bordered).controlSize(.large) }
                         if let file = model.completed {
+                            if file.pathExtension.lowercased() == "mp4" {
+                                Button("Trim video", systemImage: "scissors") { model.openTrim(file) }.buttonStyle(.bordered).controlSize(.large)
+                            }
                             Button("Show in Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
                                 .buttonStyle(.bordered).controlSize(.large)
                         }
@@ -324,7 +350,7 @@ struct ContentView: View {
                     if let error = model.error {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(error).font(.system(size: 12)).textSelection(.enabled)
-                            Text("If YouTube asks you to sign in or blocks a request, try again later. Peak 1.1 does not import browser cookies.")
+                            Text("If YouTube asks you to sign in or blocks a request, try again later. Peak 1.2 does not import browser cookies.")
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                         }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
@@ -342,7 +368,8 @@ struct ContentView: View {
 
     private var footer: some View {
                 HStack {
-                    Text("PEAK 1.1").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.5)
+                    Button("Open video to trim…") { model.openTrim() }.buttonStyle(.borderless).foregroundStyle(mint).disabled(model.busy)
+                    Text("PEAK 1.2").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.5)
                     Spacer()
                     Text("Download videos you own or have permission to save.").font(.system(size: 10))
                 }.foregroundStyle(.secondary)

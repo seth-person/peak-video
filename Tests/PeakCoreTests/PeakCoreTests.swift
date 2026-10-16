@@ -125,9 +125,46 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
         await suite.testCancellationStopsAnActiveProcess()
         print("10 test groups completed; \(failures) failures")
         if failures > 0 { exit(1) }
+        if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--trim-integration" {
+            try await trimIntegration(tools: URL(fileURLWithPath: CommandLine.arguments[2]), directory: URL(fileURLWithPath: CommandLine.arguments[3]))
+        }
         if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--integration" {
             try await integration(tools: URL(fileURLWithPath: CommandLine.arguments[2]), directory: URL(fileURLWithPath: CommandLine.arguments[3]))
         }
+    }
+
+    static func trimIntegration(tools: URL, directory: URL) async throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let source = directory.appendingPathComponent("timeline fixture.mp4")
+        let clip = directory.appendingPathComponent("precise clip.mp4")
+        let frame = directory.appendingPathComponent("preview.jpg")
+        let ffmpeg = tools.appendingPathComponent("ffmpeg"), ffprobe = tools.appendingPathComponent("ffprobe")
+        let runner = ProcessRunner()
+        _ = try await runner.run(executable: ffmpeg, arguments: ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=4", "-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-c:v", "libx264", "-g", "120", "-pix_fmt", "yuv420p", "-c:a", "aac", "-n", source.path])
+        let original = try Data(contentsOf: source)
+        let metadata = try await runner.run(executable: ffprobe, arguments: MediaInfo.probeArguments(source))
+        let info = try MediaInfo.parse(metadata)
+        expectEqual(info.width, 640); expectEqual(info.height, 360); expectEqual(info.fps, 30)
+        for (start, end) in [(Double.nan, 2.0), (-1, 2), (2, 1), (0, 5), (0, 0.001)] { expectThrows(try TrimPlan(input: source, start: start, end: end, info: info)) }
+        expectThrows(try MediaInfo.parse("{\"streams\":[],\"format\":{\"duration\":\"1\"}}"))
+        let plan = try TrimPlan(input: source, start: 22.0 / 30, end: 2.1, info: info)
+        _ = try await runner.run(executable: ffmpeg, arguments: plan.arguments(output: clip))
+        let output = try await runner.run(executable: ffprobe, arguments: MediaInfo.probeArguments(clip))
+        let result = try MediaInfo.parse(output)
+        expectLessThan(abs(result.duration - plan.duration), info.frameDuration / 2)
+        expectEqual(result.width, info.width); expectEqual(result.height, info.height)
+        expectTrue(output.contains("h264") && output.contains("aac"))
+        _ = try await runner.run(executable: ffmpeg, arguments: TrimPlan.frameArguments(input: source, time: plan.start, info: info, output: frame, width: 960))
+        expectTrue(try Data(contentsOf: frame).count > 1000)
+        // Compare the first decoded export frame to the selected source frame.
+        let comparison = try await runner.run(executable: ffmpeg, arguments: ["-v", "info", "-ss", TrimPlan.number(plan.start), "-i", source.path, "-i", clip.path, "-lavfi", "[0:v]setpts=PTS-STARTPTS[a];[1:v]setpts=PTS-STARTPTS[b];[a][b]psnr", "-frames:v", "1", "-f", "null", "-"])
+        if let range = comparison.range(of: "average:"), let value = Double(comparison[range.upperBound...].prefix(while: { !$0.isWhitespace })) { expectTrue(value > 35) } else { fail("Missing frame quality comparison") }
+        expectEqual(try Data(contentsOf: source), original)
+        let beforeClip = try Data(contentsOf: clip)
+        _ = try? await runner.run(executable: ffmpeg, arguments: plan.arguments(output: clip))
+        expectEqual(try Data(contentsOf: clip), beforeClip)
+        if failures > 0 { exit(1) }
+        print("Precise non-keyframe trim, duration, first-frame PSNR, audio, thumbnails, bounds and original preservation passed.")
     }
 
     static func integration(tools: URL, directory: URL) async throws {

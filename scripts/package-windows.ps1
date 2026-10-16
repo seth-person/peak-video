@@ -29,7 +29,7 @@ $notices = @{
   'dotnet-THIRD-PARTY-NOTICES.txt' = 'https://raw.githubusercontent.com/dotnet/runtime/v10.0.10/THIRD-PARTY-NOTICES.TXT'
 }
 foreach ($name in $notices.Keys) { Invoke-WebRequest $notices[$name] -OutFile "$stage/Licenses/$name" }
-$manifest = @{ version = '1.1.0'; architecture = 'win-x64'; dotnet = (dotnet --version); dependencies = @{} }
+$manifest = @{ version = '1.2.0'; architecture = 'win-x64'; dotnet = (dotnet --version); dependencies = @{} }
 foreach ($name in @('yt-dlp.exe', 'deno-windows.zip', 'ffmpeg-windows.zip')) { $manifest.dependencies[$name] = $lock.$name }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content "$stage/dependency-manifest.json"
 $p = Start-Process "$stage/Peak.exe" '--self-test' -Wait -PassThru
@@ -38,8 +38,8 @@ Get-Content "$stage/self-test-passed.txt"
 Remove-Item "$stage/self-test-passed.txt"
 $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
 if (!$makensis) { $makensis = "${env:ProgramFiles(x86)}/NSIS/makensis.exe" }
-& $makensis "/DSTAGE=$stage" "/DOUTPUT=$root/dist/Peak-1.1.0-windows-x64.exe" "$PSScriptRoot/windows-installer.nsi"
+& $makensis "/DSTAGE=$stage" "/DOUTPUT=$root/dist/Peak-1.2.0-windows-x64.exe" "$PSScriptRoot/windows-installer.nsi"
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
 Copy-Item "$stage/dependency-manifest.json" "$root/dist/dependency-manifest-windows-x64.json"
-$artifact = Get-Item "$root/dist/Peak-1.1.0-windows-x64.exe"
+$artifact = Get-Item "$root/dist/Peak-1.2.0-windows-x64.exe"
 "$((Get-FileHash $artifact -Algorithm SHA256).Hash.ToLower())  $($artifact.Name)" | Set-Content "$root/dist/SHA256SUMS-windows-x64.txt"

@@ -1,16 +1,16 @@
 Unicode true
 !include "MUI2.nsh"
 !include "x64.nsh"
-Name "Peak 1.1.0"
+Name "Peak 1.2.0"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\Peak"
 InstallDirRegKey HKCU "Software\Peak" "InstallPath"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-VIProductVersion "1.1.0.0"
+VIProductVersion "1.2.0.0"
 VIAddVersionKey "ProductName" "Peak"
 VIAddVersionKey "FileDescription" "Peak installer"
-VIAddVersionKey "FileVersion" "1.1.0"
+VIAddVersionKey "FileVersion" "1.2.0"
 VIAddVersionKey "LegalCopyright" "Copyright 2026 Seth Person"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -35,7 +35,7 @@ Section "Peak"
   CreateShortcut "$SMPROGRAMS\Peak\Uninstall Peak.lnk" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Peak" "InstallPath" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "DisplayName" "Peak"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "DisplayVersion" "1.1.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "DisplayVersion" "1.2.0"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "Publisher" "Seth Person"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "NoModify" 1

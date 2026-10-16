@@ -14,6 +14,7 @@ internal static class Program
         }
         try {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+            if (args.Length == 2 && args[0] == "--trim-ui-smoke-test") { using var trimTest = new TrimWindow(args[1], true); Application.Run(trimTest); return File.Exists(Path.Combine(AppContext.BaseDirectory, "trim-ui-test-passed.txt")) ? 0 : 1; }
             using var window = new MainWindow();
             if (args.Contains("--ui-smoke-test")) {
                 window.Shown += (_, _) => {
@@ -44,7 +45,7 @@ internal sealed class MainWindow : Form
     readonly TextBox link = new() { PlaceholderText = "Paste a YouTube video URL", AccessibleName = "YouTube video URL" };
     readonly ComboBox format = new(), quality = new(), resolution = new();
     readonly Label explanation = new(), folderLabel = new(), info = new(), status = new();
-    readonly Button download = new(), preview = new(), cancel = new(), folder = new(), reveal = new();
+    readonly Button download = new(), preview = new(), cancel = new(), folder = new(), reveal = new(), trim = new(), openTrim = new();
     readonly ProgressBar progress = new();
     readonly TextBox details = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
     readonly string tools = Path.Combine(AppContext.BaseDirectory, "Tools");
@@ -55,7 +56,7 @@ internal sealed class MainWindow : Form
     {
         Text = "Peak"; BackColor = Color.FromArgb(14, 19, 26); ForeColor = Color.WhiteSmoke;
         Font = new Font("Segoe UI", 10); AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(820, 830); MinimumSize = new Size(760, 760); StartPosition = FormStartPosition.CenterScreen;
+        ClientSize = new Size(820, 890); MinimumSize = new Size(760, 760); StartPosition = FormStartPosition.CenterScreen;
         try { if (File.Exists(settings)) destination = JsonSerializer.Deserialize<string>(File.ReadAllText(settings)) ?? destination; } catch (Exception) {}
         var page = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(32), ColumnCount = 1, AutoScroll = true };
         page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); Controls.Add(page);
@@ -82,18 +83,20 @@ internal sealed class MainWindow : Form
         folder.Text = "Change…"; folder.Dock = DockStyle.Fill;
         folder.Click += (_, _) => { using var dialog = new FolderBrowserDialog { InitialDirectory = destination, Description = "Save downloads here", UseDescriptionForTitle = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { destination = dialog.SelectedPath; folderLabel.Text = destination; try { Directory.CreateDirectory(Path.GetDirectoryName(settings)!); File.WriteAllText(settings, JsonSerializer.Serialize(destination)); } catch (Exception e) { status.Text = "Folder selected; preference could not be saved: " + e.Message; } } };
         folders.Controls.Add(folderLabel); folders.Controls.Add(folder); Add(folders, 44);
-        var buttons = new TableLayoutPanel { ColumnCount = 3 };
-        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        var buttons = new TableLayoutPanel { ColumnCount = 4 };
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         download.Click += async (_, _) => await Start(false); download.BackColor = mint; download.ForeColor = BackColor;
         cancel.Text = "Cancel"; cancel.Enabled = false; cancel.Click += (_, _) => { status.Text = "Cancelling…"; cancellation?.Cancel(); };
-        reveal.Text = "Show in Explorer"; reveal.Enabled = false; reveal.Click += (_, _) => { if (completed is not null) { var p = new ProcessStartInfo("explorer.exe") { UseShellExecute = true }; p.ArgumentList.Add("/select,"); p.ArgumentList.Add(completed); Process.Start(p); } };
-        foreach (var button in new[] { download, cancel, reveal }) { button.Dock = DockStyle.Fill; buttons.Controls.Add(button); }
+        reveal.Text = "Show in Explorer"; reveal.Enabled = trim.Enabled = false; reveal.Click += (_, _) => { if (completed is not null) { var p = new ProcessStartInfo("explorer.exe") { UseShellExecute = true }; p.ArgumentList.Add("/select,"); p.ArgumentList.Add(completed); Process.Start(p); } };
+        trim.Text = "Trim video"; trim.Enabled = false; trim.Click += (_, _) => { if (completed is not null) { using var editor = new TrimWindow(completed); editor.ShowDialog(this); } };
+        foreach (var button in new[] { download, cancel, reveal, trim }) { button.Dock = DockStyle.Fill; buttons.Controls.Add(button); }
         Add(buttons, 52); Add(progress, 23); status.Text = "Ready when you are"; Add(status, 48);
         var toggle = new Button { Text = "Show / hide details" }; toggle.Click += (_, _) => { details.Visible = !details.Visible; page.RowStyles[page.GetRow(details)].Height = details.Visible ? 150 : 0; }; Add(toggle, 40);
         Add(details, 0); details.Visible = false;
-        Add(Label("PEAK 1.1   ·   Download media you own or have permission to save.", 9, Color.Silver), 34);
-        foreach (var button in new[] { preview, folder, download, cancel, reveal, toggle }) { button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderColor = Color.FromArgb(65, 78, 90); button.Cursor = Cursors.Hand; }
-        link.TextChanged += (_, _) => { info.Text = ""; completed = null; reveal.Enabled = false; };
+        openTrim.Text = "Open video to trim…"; openTrim.Click += (_, _) => { using var dialog = new OpenFileDialog { Filter = "Video files|*.mp4;*.mov;*.mkv;*.webm;*.avi;*.m4v|All files|*.*", Title = "Open in trim editor" }; if (dialog.ShowDialog(this) == DialogResult.OK) { using var editor = new TrimWindow(dialog.FileName); editor.ShowDialog(this); } }; Add(openTrim, 40);
+        Add(Label("PEAK 1.2   ·   Download media you own or have permission to save.", 9, Color.Silver), 34);
+        foreach (var button in new[] { preview, folder, download, cancel, reveal, trim, openTrim, toggle }) { button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderColor = Color.FromArgb(65, 78, 90); button.Cursor = Cursors.Hand; }
+        link.TextChanged += (_, _) => { info.Text = ""; completed = null; reveal.Enabled = trim.Enabled = false; };
         UpdateFormat();
         FormClosing += (_, e) => { if (cancellation is null) return; e.Cancel = true; if (MessageBox.Show(this, "Cancel the current download and quit?", "Peak", MessageBoxButtons.YesNo) == DialogResult.Yes) { closing = true; cancellation.Cancel(); } };
     }
@@ -107,7 +110,7 @@ internal sealed class MainWindow : Form
             OutputFormat.MP3 => "Best available audio converted to 320 kbps MP3. Compact and widely compatible; conversion is lossy.",
             _ => quality.SelectedIndex == 0 ? "Best available video + audio. No re-encoding. May use AV1, VP9 or Opus; use a player that supports those codecs." : "H.264 video + AAC audio for broad playback support. YouTube may only offer these formats up to 1080p."
         };
-        download.Text = "Download " + SelectedFormat; info.Text = ""; completed = null; reveal.Enabled = false;
+        download.Text = "Download " + SelectedFormat; info.Text = ""; completed = null; reveal.Enabled = trim.Enabled = false;
     }
     async Task Start(bool previewOnly)
     {
@@ -116,7 +119,7 @@ internal sealed class MainWindow : Form
         try { _ = plan.Url; foreach (var name in new[] { "yt-dlp", "ffmpeg", "ffprobe", "deno" }) if (!File.Exists(Path.Combine(tools, name + ".exe"))) throw new IOException("Bundled " + name + " is missing. Reinstall Peak."); if (!previewOnly) Directory.CreateDirectory(destination); }
         catch (Exception e) { status.Text = e.Message; return; }
         cancellation = new(); var token = cancellation.Token;
-        foreach (var control in new Control[] { link, format, quality, resolution, folder, download, preview, reveal }) control.Enabled = false;
+        foreach (var control in new Control[] { link, format, quality, resolution, folder, download, preview, reveal, trim, openTrim }) control.Enabled = false;
         cancel.Enabled = true; completed = null; details.Clear(); progress.Style = ProgressBarStyle.Marquee;
         status.Text = "Finding the best available streams…";
         try {
@@ -146,8 +149,8 @@ internal sealed class MainWindow : Form
         catch (Exception e) { status.Text = "Couldn’t finish: " + e.Message; details.AppendText(e + Environment.NewLine); }
         finally {
             cancellation.Dispose(); cancellation = null; cancel.Enabled = false; progress.Style = ProgressBarStyle.Continuous; progress.Value = completed is null ? 0 : 100;
-            foreach (var c in new Control[] { link, format, folder, download, preview }) c.Enabled = true;
-            quality.Enabled = resolution.Enabled = SelectedFormat == OutputFormat.MP4; reveal.Enabled = completed is not null;
+            foreach (var c in new Control[] { link, format, folder, download, preview, openTrim }) c.Enabled = true;
+            quality.Enabled = resolution.Enabled = SelectedFormat == OutputFormat.MP4; reveal.Enabled = completed is not null; trim.Enabled = completed is not null && SelectedFormat == OutputFormat.MP4;
             if (closing) Close();
         }
     }
