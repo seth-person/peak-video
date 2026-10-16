@@ -84,7 +84,7 @@ public struct DownloadPlan: Sendable {
          "--no-remote-components", "--no-js-runtimes", "--js-runtimes", "deno:\(tools.appendingPathComponent("deno").path)",
          "--ffmpeg-location", tools.path, "--socket-timeout", "20", "--retries", "5",
          "--fragment-retries", "5", "--match-filter", "!is_live & !is_upcoming", "-f", format,
-         "-S", output == .mp4 ? "res,fps,hdr:12,vcodec,channels,acodec,br,size" : "abr,asr,channels,acodec,size"]
+         "-S", output == .mp4 ? "res,fps,hdr:12,vcodec,channels,acodec,br,size" : "channels,acodec,abr,asr,size"]
     }
 
     public func inspectArguments(tools: URL) -> [String] {

@@ -38,7 +38,7 @@ internal sealed record DownloadPlan(string Input, string Directory, OutputFormat
             "--no-js-runtimes", "--js-runtimes", "deno:" + Path.Combine(tools, "deno.exe"),
             "--ffmpeg-location", tools, "--socket-timeout", "20", "--retries", "5", "--fragment-retries", "5",
             "--match-filter", "!is_live & !is_upcoming", "-f", Format, "-S",
-            Output == OutputFormat.MP4 ? "res,fps,hdr:12,vcodec,channels,acodec,br,size" : "abr,asr,channels,acodec,size"
+            Output == OutputFormat.MP4 ? "res,fps,hdr:12,vcodec,channels,acodec,br,size" : "channels,acodec,abr,asr,size"
         };
         if (preview) args.AddRange(["--skip-download", "--dump-single-json"]);
         else {

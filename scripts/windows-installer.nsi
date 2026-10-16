@@ -37,7 +37,7 @@ Section "Peak"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "DisplayName" "Peak"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "DisplayVersion" "1.1.0"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "Publisher" "Seth Person"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Peak" "NoRepair" 1
 SectionEnd

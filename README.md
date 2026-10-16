@@ -1,78 +1,75 @@
 # Peak
 
-A native Mac app for saving YouTube videos as MP4 while preserving the best available source quality.
+A local YouTube downloader for Mac and Windows. Save the highest available video quality as **MP4**, or choose audio-only **WAV** and **MP3**.
 
-## Install 1.0
+## Install 1.1
 
-Download **Peak-1.0.0-arm64.dmg** from this repository's Releases page, open it, and drag Peak into Applications. A standard **.pkg installer** is also provided.
+Download the installer for your machine from [Releases](https://github.com/seth-person/peak-video/releases/tag/v1.1.0):
 
-**This release requires an Apple Silicon Mac and macOS 27 or later.** It bundles yt-dlp, FFmpeg, ffprobe, Deno, and their native libraries. Homebrew, Python, Node, and Terminal are not required to use the app.
+| Machine | Installer | Requirement |
+| --- | --- | --- |
+| Apple Silicon Mac | `Peak-1.1.0-arm64.dmg` or `.pkg` | macOS 27+ |
+| Intel Mac | `Peak-1.1.0-x86_64.dmg` or `.pkg` | macOS 14+ |
+| Windows PC | `Peak-1.1.0-windows-x64.exe` | Windows 10/11, 64-bit x64 |
 
-This private build is ad-hoc signed, not signed with an Apple Developer ID or notarized. If macOS blocks the downloaded app or installer, attempt to open it, then use **System Settings → Privacy & Security → Open Anyway** for that specific item. Do not disable Gatekeeper globally.
+Mac: open the DMG and drag Peak to Applications, or use the PKG. Windows: run the installer; it installs for your user and adds a Start menu shortcut and uninstaller. All builds include yt-dlp, FFmpeg, ffprobe and Deno. Windows includes its .NET runtime. No separate dependency setup is needed.
+
+These private builds do not have commercial signing certificates. Mac apps are ad-hoc signed and not notarized; if blocked, attempt to open the specific app/installer, then use **System Settings → Privacy & Security → Open Anyway**. Windows may show an unknown-publisher/SmartScreen prompt. Verify the release and its SHA-256 checksums before opening. Do not disable system-wide protections.
 
 ## Use
 
 1. Paste a YouTube video, Shorts, or completed livestream URL.
-2. Optionally click **Preview video** to see the selected resolution, frame rate, duration, and estimated size when available.
-3. Keep **Maximum quality** selected for the highest available streams. Leave the resolution limit at **Best available** to allow 4K, 8K, or whatever the source offers.
-4. Choose a destination, then click **Download MP4** (⌘Return).
-5. Use **Show in Finder** when it finishes.
+2. Select **MP4 · Video**, **WAV · Audio**, or **MP3 · Audio**.
+3. For MP4, choose Maximum quality or Wide compatibility and an optional resolution limit.
+4. Optionally preview, choose a save folder, then click **Download**.
+5. Use **Show in Finder/Explorer** when complete.
 
-Downloads go to `~/Downloads/Peak` by default. The app remembers your chosen folder. Download progress is per stream: video and audio usually download separately, followed by the MP4 merge. Cancelled partial downloads remain in the destination and are resumed when possible on retry.
+Downloads default to `Downloads/Peak`; your chosen folder is remembered. Progress measures the current source stream. MP4 usually downloads separate video/audio streams before merging. Cancelling stops the downloader and conversion processes; partial downloads can resume on retry. Existing completed files are not overwritten. Filenames include the video ID and format/quality preset.
 
-### Quality and playback
+## Quality
 
-**Maximum quality** selects the best available video-only and audio-only streams and merges/remuxes them into MP4 without re-encoding. Ranking prioritizes source resolution, frame rate, HDR, codec, audio channels, and bitrate. Peak cannot improve the source or access formats YouTube does not make available to the downloader.
+**MP4 — Maximum quality:** selects the best available video and audio streams, then merges/remuxes without re-encoding. No resolution cap by default, allowing 4K, 8K or whatever the source provides. Ranking prioritizes resolution, frame rate, HDR and codec quality. MP4 is a container; AV1/VP9 video or Opus audio may require a compatible player.
 
-MP4 is a container, not a codec. The best source may use AV1 or VP9 video and Opus audio; some versions of QuickTime and some editors cannot play these combinations. Use a player that supports those codecs, or select **Wide compatibility**, which requests H.264 video and AAC audio. Compatibility mode may be limited to 1080p or lower and fails clearly if compatible source streams are unavailable. It does not silently transcode or fall back to incompatible codecs.
+**MP4 — Wide compatibility:** H.264 video plus AAC audio. YouTube may offer these only at 1080p or below. If unavailable, Peak reports an error rather than silently choosing other codecs.
 
-Filenames include the video ID and quality preset so changing modes or resolution limits does not reuse a different preset's existing download. Existing completed files are not overwritten. If you want to re-fetch the same preset after YouTube changes the available formats, move or rename its previous file first.
+**WAV:** downloads the best available audio, then decodes to uncompressed **24-bit PCM**, preserving the source sample rate and channel layout. Files are large. YouTube audio is already compressed; WAV does not restore lost information or create a lossless original.
 
-### Scope and limitations
+**MP3:** downloads the best available audio, then converts to **320 kbps MP3**. MP3 conversion is lossy. Source sample rate/channel layout are preserved where supported by MP3.
 
-* One video at a time. A video link containing a playlist parameter downloads only that video. Playlist-only links are rejected.
-* Live and upcoming streams are excluded. Completed streams depend on YouTube making their downloadable formats available.
-* Public, accessible videos only in 1.0. No browser-cookie import, sign-in UI, DRM circumvention, or paid-content access.
-* YouTube can rate-limit or block requests. Errors appear in the app; the Details panel includes downloader diagnostics. Try again later if YouTube asks for sign-in or blocks a request.
-* No automatic updater in 1.0. A future app release can bundle an updated extractor if YouTube changes.
-* Allow space for both source streams and the merged output during processing.
-* Download videos you own or have permission to save.
+Audio-only modes do not download video when an audio-only stream is available. Video quality and resolution settings do not affect audio modes.
 
-## Privacy and implementation
+## Scope and privacy
 
-Peak runs tools locally. Video traffic goes directly to YouTube and its media hosts; Peak has no backend, analytics, or account. Your links and downloaded media are not uploaded to GitHub. The app deliberately ignores global yt-dlp configurations, disables remote component fetching, accepts only validated YouTube video URLs, and passes arguments directly to `Process` without shell interpolation.
+One video at a time; playlist-only URLs are rejected. Public accessible videos and finished livestreams are supported. Live/upcoming streams, cookie import, sign-in, paid-content access and DRM circumvention are outside this release. YouTube may rate-limit or block requests; diagnostics appear under Details. No automatic updater: future releases can bundle extractor updates.
 
-The UI is SwiftUI, with a separate `PeakCore` module for URL validation, format selection, metadata/progress parsing, and subprocess management. Cancellation terminates the downloader process tree, including active merge processes. Closing the app during an operation asks whether to keep downloading or cancel and quit.
+Peak runs locally, with media traffic going directly to YouTube and its media hosts. There is no Peak server, analytics or account. Links and downloaded files are not uploaded to GitHub. Tools ignore global yt-dlp settings, disable remote component fetching, accept validated YouTube URLs, and receive arguments directly without shell interpolation. Download only media you own or have permission to save.
 
-## Build from source
+## Build and test
 
-The app source targets macOS 14+, but the **binary release's minimum OS is the highest requirement of its bundled dependencies**. This 1.0 build uses macOS 27 Homebrew binaries and therefore requires macOS 27.
-
-On an Apple Silicon Mac with Apple's Command Line Tools or Xcode:
+Mac UI: SwiftUI; core logic: Swift. Windows UI: C# WinForms on .NET 10. Source is in `Sources/` and `windows/Peak/`.
 
 ```sh
+# Mac core checks (no XCTest dependency)
+swift run PeakCoreChecks
+# Apple Silicon package; local Homebrew dependencies determine minimum OS
 brew install ffmpeg deno
-swift run PeakCoreChecks
-python3 scripts/package.py
+python3 scripts/package.py --arch arm64
+# Intel package, including cross-compilation on an Apple Silicon Mac
+python3 scripts/package.py --arch x86_64
+# Optional live test: MP4 in both modes, WAV, and MP3
+swift run PeakCoreChecks --integration /path/to/Peak.app/Contents/Resources/Tools /tmp/peak-test
 ```
 
-`package.py` downloads the official pinned yt-dlp macOS standalone binary and verifies its SHA-256, builds the app, copies all required Homebrew libraries into the bundle, rewrites their load paths, gathers license notices, checks the signatures and tool launch behavior, and produces the DMG, PKG, dependency manifest, and checksums under `dist/`.
+The source targets macOS 14+. Apple Silicon releases currently bundle macOS 27 Homebrew binaries and therefore require macOS 27. Intel packages use standalone x86_64 dependencies. Packaging validates hashes, load paths, signatures and tool startup. Use `--ytdlp`, `--build-dir` and `--dependency-cache` to reuse local inputs.
 
-The application has no Swift package dependencies. The standalone test executable avoids requiring XCTest, which is unavailable in some Command Line Tools installations. Build-only commands:
+On Windows, install .NET SDK 10.0.402 and NSIS, then run:
 
-```sh
-swift build --product Peak -c release
-swift run PeakCoreChecks
-# Optional network smoke test (downloads two short public test videos):
-swift run PeakCoreChecks --integration /path/to/Peak.app/Contents/Resources/Tools /tmp/peak-smoke
+```powershell
+./scripts/package-windows.ps1
 ```
 
-The loose executable from `swift build` needs the bundled tools; run the `.app` produced by the packaging script for the complete experience. Use `--ytdlp /path/to/yt-dlp_macos` and `--build-dir /path/to/build` to reuse existing downloads/build artifacts.
+The Windows Actions workflow builds the self-contained executable and installer, verifies URL/format logic, bundled-tool startup, WAV/MP3 codecs and bitrate, process cancellation, silent installation, installed-app tests, window launch and uninstallation. Build artifacts are available from the workflow run. Windows installer tests do not depend on YouTube access from cloud runners.
 
-### Release maintenance
+Pinned Windows/Intel downloads are in `scripts/dependencies.json`; yt-dlp macOS is pinned in `scripts/package.py`. Update versions and checksums together. Homebrew dependency paths and hashes are recorded per build. `dist/` contains installers and manifests; binaries are excluded from Git source.
 
-Update the pinned yt-dlp version and SHA-256 in `scripts/package.py` together. Record the Homebrew binary versions through the generated dependency manifest; those dependencies are local build inputs rather than immutable downloads. Verify both quality modes, cancellation, MP4 codec information with ffprobe, and the app launched from the packaged disk image before publishing.
-
-No Developer ID identity is needed for a private local build. For a future notarized distribution, sign every bundled executable/library and the app with a valid Developer ID Application identity using appropriate runtime entitlements, sign the installer with Developer ID Installer, submit to Apple's notary service, and staple the accepted ticket. Do not commit signing keys or credentials.
-
-See [THIRD_PARTY.md](THIRD_PARTY.md) for bundled component licenses and source references.
+See [THIRD_PARTY.md](THIRD_PARTY.md) for component notices. Signing keys and credentials are never committed.

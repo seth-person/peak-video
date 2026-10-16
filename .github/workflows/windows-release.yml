@@ -25,6 +25,8 @@ jobs:
         run: |
           $installer = Start-Process ./dist/Peak-1.1.0-windows-x64.exe '/S' -Wait -PassThru
           if ($installer.ExitCode -ne 0) { throw 'Installation failed' }
+          $uninstallCommand = (Get-ItemProperty 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/Peak').UninstallString
+          if ($uninstallCommand -ne ('"' + "$env:LOCALAPPDATA\Programs\Peak\Uninstall.exe" + '"')) { throw 'Uninstaller registration is invalid' }
           $exe = "$env:LOCALAPPDATA/Programs/Peak/Peak.exe"
           $check = Start-Process $exe '--self-test' -Wait -PassThru
           if ($check.ExitCode -ne 0) { Get-Content "$env:LOCALAPPDATA/Programs/Peak/self-test-error.txt"; throw 'Installed app test failed' }
