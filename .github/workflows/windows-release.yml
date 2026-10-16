@@ -30,12 +30,11 @@ jobs:
           $exe = "$env:LOCALAPPDATA/Programs/Peak/Peak.exe"
           $check = Start-Process $exe '--self-test' -Wait -PassThru
           if ($check.ExitCode -ne 0) { Get-Content "$env:LOCALAPPDATA/Programs/Peak/self-test-error.txt"; throw 'Installed app test failed' }
-          $app = Start-Process $exe -PassThru
-          if (!$app.WaitForInputIdle(15000)) { throw 'UI startup timeout' }
-          $app.Refresh()
-          if ($app.HasExited -or $app.MainWindowTitle -ne 'Peak') { throw 'Main window did not launch' }
-          $null = $app.CloseMainWindow()
-          if (!$app.WaitForExit(10000)) { throw 'App did not close cleanly' }
+          $app = Start-Process $exe '--ui-smoke-test' -PassThru
+          if (!$app.WaitForExit(30000)) { $app.Kill(); throw 'UI smoke test timed out' }
+          if ($app.ExitCode -ne 0) { Get-Content "$env:LOCALAPPDATA/Programs/Peak/startup-error.txt"; throw 'UI startup failed' }
+          if (!(Test-Path "$env:LOCALAPPDATA/Programs/Peak/ui-test-passed.txt")) { throw 'UI did not render' }
+          Copy-Item "$env:LOCALAPPDATA/Programs/Peak/ui-preview.png" './dist/Peak-windows-preview.png'
           $uninstall = Start-Process "$env:LOCALAPPDATA/Programs/Peak/Uninstall.exe" '/S' -Wait -PassThru
           Start-Sleep -Seconds 3
           if (Test-Path $exe) { throw 'Uninstall did not remove app' }
@@ -46,4 +45,5 @@ jobs:
             dist/Peak-1.1.0-windows-x64.exe
             dist/dependency-manifest-windows-x64.json
             dist/SHA256SUMS-windows-x64.txt
+            dist/Peak-windows-preview.png
           retention-days: 14

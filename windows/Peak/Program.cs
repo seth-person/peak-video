@@ -12,8 +12,30 @@ internal static class Program
             try { SelfTest.Run().GetAwaiter().GetResult(); return 0; }
             catch (Exception e) { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "self-test-error.txt"), e.ToString()); return 1; }
         }
-        Application.Run(new MainWindow());
-        return 0;
+        try {
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+            using var window = new MainWindow();
+            if (args.Contains("--ui-smoke-test")) {
+                window.Shown += (_, _) => {
+                    var timer = new System.Windows.Forms.Timer { Interval = 500 };
+                    timer.Tick += (_, _) => {
+                        timer.Stop(); timer.Dispose();
+                        if (!window.Visible || window.ClientSize.Width < 700) throw new Exception("Window did not become visible");
+                        using var bitmap = new Bitmap(window.Width, window.Height);
+                        window.DrawToBitmap(bitmap, new Rectangle(Point.Empty, window.Size));
+                        bitmap.Save(Path.Combine(AppContext.BaseDirectory, "ui-preview.png"));
+                        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "ui-test-passed.txt"), "Main form shown and rendered successfully.");
+                        window.Close();
+                    };
+                    timer.Start();
+                };
+            }
+            Application.Run(window);
+            return 0;
+        } catch (Exception e) {
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "startup-error.txt"), e.ToString());
+            return 1;
+        }
     }
 }
 internal sealed class MainWindow : Form
