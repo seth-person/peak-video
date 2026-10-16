@@ -14,7 +14,7 @@ Download the installer for your machine from [Releases](https://github.com/seth-
 
 Mac: open the DMG and drag Peak to Applications, or use the PKG. Windows: run the installer; it installs for your user and adds a Start menu shortcut and uninstaller. All builds include yt-dlp, FFmpeg, ffprobe and Deno. Windows includes its .NET runtime. No separate dependency setup is needed.
 
-These private builds do not have commercial signing certificates. Mac apps are ad-hoc signed and not notarized; if blocked, attempt to open the specific app/installer, then use **System Settings → Privacy & Security → Open Anyway**. Windows may show an unknown-publisher/SmartScreen prompt. Verify the release and its SHA-256 checksums before opening. Do not disable system-wide protections.
+These builds do not have commercial signing certificates. Mac apps are ad-hoc signed and not notarized; if blocked, attempt to open the specific app/installer, then use **System Settings → Privacy & Security → Open Anyway**. Windows may show an unknown-publisher/SmartScreen prompt. Verify the release and its SHA-256 checksums before opening. Do not disable system-wide protections.
 
 ## Use
 

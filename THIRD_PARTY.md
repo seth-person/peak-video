@@ -9,7 +9,7 @@ Peak bundles these tools for local execution. Their licenses are independent of 
 
 Homebrew formula sources and source download references: https://github.com/Homebrew/homebrew-core/tree/main/Formula
 
-This private build is for the repository owner's local use. Before redistributing third-party binaries outside your own organization, satisfy their corresponding-source and notice obligations; source links alone do not replace any applicable corresponding-source obligation.
+Peak's application source is MIT licensed. Bundled third-party components retain their own licenses. Their source and build references are listed below and in [SOURCES.md](SOURCES.md); preserve their notices and satisfy their corresponding-source obligations when redistributing binaries.
 
 ## Version 1.1 platform bundles
 
