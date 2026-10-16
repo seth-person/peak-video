@@ -41,7 +41,7 @@ Audio-only modes do not download video when an audio-only stream is available. V
 
 ## Video trimming
 
-The editor shows 12 thumbnails across the source, a large scrubbed-frame preview, a playhead, adjustable handles, millisecond time fields and selection duration. Frame steps use the average source frame rate; variable-frame-rate sources can have uneven frame spacing. The end time is exclusive. Preview generation stays local and is cancelled when you scrub again or close the editor.
+The editor shows 12 thumbnails across the source, a large scrubbed-frame preview, a playhead, adjustable handles, millisecond time fields and selection duration. Times snap to the nearest frame. Frame steps use the average source frame rate; variable-frame-rate sources can have uneven frame spacing. The end time is exclusive. Preview generation stays local and is cancelled when you scrub again or close the editor.
 
 Precise cuts re-encode to high-quality H.264 (CRF 16, slow preset) and AAC at the original resolution. HDR inputs use 10-bit HEVC with source color tags; previews are approximate and dynamic HDR metadata is not guaranteed to survive export. Trimming is lossy, unlike the original maximum-quality download. The original file is preserved, exports require a new filename, and cancelled exports remove their partial output. This is a single-range trim editor; it does not crop the picture, join clips, or add transitions.
 

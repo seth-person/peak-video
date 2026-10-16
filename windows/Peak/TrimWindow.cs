@@ -99,12 +99,12 @@ internal sealed class TrimWindow : Form
         } catch (OperationCanceledException) {} catch (Exception e) { status.Text = e.Message; if (smoke) { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "trim-ui-error.txt"), e.ToString()); Close(); } }
     }
     void RefreshRange() { timeline.Start = (double)start.Value; timeline.End = (double)end.Value; timeline.Invalidate(); duration.Text = "Selection " + TrimPlan.Timecode(timeline.End - timeline.Start); }
-    void SetStart(double value) { if (info is null || exportCancellation is not null) return; updating = true; start.Value = (decimal)Math.Clamp(value, 0, Math.Max(0, (double)end.Value - Math.Min(info.Frame, info.Duration))); updating = false; RefreshRange(); Seek((double)start.Value); }
-    void SetEnd(double value) { if (info is null || exportCancellation is not null) return; updating = true; end.Value = (decimal)Math.Clamp(value, Math.Min(info.Duration, (double)start.Value + Math.Min(info.Frame, info.Duration)), info.Duration); updating = false; RefreshRange(); Seek(Math.Max((double)start.Value, (double)end.Value - info.Frame)); }
+    void SetStart(double value) { if (info is null || exportCancellation is not null) return; updating = true; start.Value = (decimal)Math.Clamp(info.Snapped(value), 0, Math.Max(0, (double)end.Value - Math.Min(info.Frame, info.Duration))); updating = false; RefreshRange(); Seek((double)start.Value); }
+    void SetEnd(double value) { if (info is null || exportCancellation is not null) return; updating = true; end.Value = (decimal)Math.Clamp(info.Snapped(value), Math.Min(info.Duration, (double)start.Value + Math.Min(info.Frame, info.Duration)), info.Duration); updating = false; RefreshRange(); Seek(Math.Max((double)start.Value, (double)end.Value - info.Frame)); }
     void Seek(double value)
     {
         if (info is null || exportCancellation is not null || closed) return;
-        playhead = Math.Clamp(value, 0, Math.Max(0, info.Duration - info.Frame)); time.Text = TrimPlan.Timecode(playhead); timeline.Position = playhead; timeline.Invalidate(); _ = LoadFrame(playhead);
+        playhead = Math.Clamp(info.Snapped(value), 0, Math.Max(0, info.Duration - info.Frame)); time.Text = TrimPlan.Timecode(playhead); timeline.Position = playhead; timeline.Invalidate(); _ = LoadFrame(playhead);
     }
     async Task LoadFrame(double at)
     {

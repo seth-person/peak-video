@@ -4,6 +4,7 @@ namespace Peak;
 internal sealed record MediaInfo(double Duration, int Width, int Height, double Fps, bool Hdr, string Transfer, string Primaries, string Matrix)
 {
     public double Frame => 1 / Fps;
+    public double Snapped(double time) => time >= Duration ? Duration : Math.Clamp(Math.Round(time * Fps, MidpointRounding.AwayFromZero) / Fps, 0, Duration);
     public static MediaInfo Parse(string json)
     {
         using var doc = JsonDocument.Parse(json); var root = doc.RootElement;
@@ -20,13 +21,15 @@ internal sealed record MediaInfo(double Duration, int Width, int Height, double 
 }
 internal sealed record TrimPlan(string Input, double Start, double End, MediaInfo Info)
 {
-    public double Duration => End - Start;
+    public double EffectiveStart => Math.Min(Info.Snapped(Start), Math.Max(0, Info.Duration - Math.Min(Info.Frame, Info.Duration)));
+    public double EffectiveEnd => Math.Min(Info.Duration, Math.Max(EffectiveStart + Math.Min(Info.Frame, Info.Duration), Info.Snapped(End)));
+    public double Duration => EffectiveEnd - EffectiveStart;
     public static string Number(double value) => value.ToString("F6", CultureInfo.InvariantCulture);
     public static string Timecode(double value) => TimeSpan.FromSeconds(Math.Max(0, value)).ToString(@"hh\:mm\:ss\.fff");
     public string[] Arguments(string output)
     {
-        if (!double.IsFinite(Start) || !double.IsFinite(End) || Start < 0 || End > Info.Duration + 0.000001 || Duration < Math.Min(Info.Frame, Info.Duration) - 0.000001) throw new ArgumentException("Choose a range within the video, at least one frame long.");
-        var args = new List<string> { "-v", "error", "-nostdin", "-ss", Number(Start), "-i", Input, "-t", Number(Duration), "-map", "0:v:0", "-map", "0:a:0?", "-map_metadata", "0", "-map_chapters", "-1", "-c:v", Info.Hdr ? "libx265" : "libx264", "-preset", "slow", "-crf", "16", "-pix_fmt", Info.Hdr ? "yuv420p10le" : "yuv420p", "-c:a", "aac", "-b:a", "320k", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats" };
+        if (!double.IsFinite(Start) || !double.IsFinite(End) || Start < 0 || End > Info.Duration + 0.000001 || End - Start < Math.Min(Info.Frame, Info.Duration) - 0.000001) throw new ArgumentException("Choose a range within the video, at least one frame long.");
+        var args = new List<string> { "-v", "error", "-nostdin", "-ss", Number(EffectiveStart), "-i", Input, "-t", Number(Duration), "-map", "0:v:0", "-map", "0:a:0?", "-map_metadata", "0", "-map_chapters", "-1", "-c:v", Info.Hdr ? "libx265" : "libx264", "-preset", "slow", "-crf", "16", "-pix_fmt", Info.Hdr ? "yuv420p10le" : "yuv420p", "-c:a", "aac", "-b:a", "320k", "-movflags", "+faststart", "-progress", "pipe:1", "-nostats" };
         if (Info.Hdr) args.AddRange(["-tag:v", "hvc1", "-x265-params", "log-level=error", "-color_primaries", Info.Primaries, "-color_trc", Info.Transfer, "-colorspace", Info.Matrix]);
         args.AddRange(["-n", output]); return args.ToArray();
     }

@@ -51,7 +51,7 @@ final class TrimModel: ObservableObject, Identifiable {
     }
     func seek(_ time: Double) {
         guard let info, time.isFinite, !exporting, !closed else { return }
-        playhead = min(max(0, time), max(0, info.duration - info.frameDuration))
+        playhead = min(info.snapped(time), max(0, info.duration - info.frameDuration))
         let at = playhead; let token = UUID(); generation = token
         previewTask?.cancel(); previewRunner?.cancel()
         previewTask = Task {
@@ -67,12 +67,12 @@ final class TrimModel: ObservableObject, Identifiable {
     }
     func setStart(_ value: Double) {
         guard let info, value.isFinite else { return }
-        start = min(max(0, value), max(0, end - min(info.frameDuration, info.duration)))
+        start = min(info.snapped(value), max(0, end - min(info.frameDuration, info.duration)))
         completed = nil; seek(start)
     }
     func setEnd(_ value: Double) {
         guard let info, value.isFinite else { return }
-        end = min(info.duration, max(start + min(info.frameDuration, info.duration), value))
+        end = min(info.duration, max(start + min(info.frameDuration, info.duration), info.snapped(value)))
         completed = nil; seek(max(start, end - info.frameDuration))
     }
     func export() {

@@ -40,7 +40,7 @@ internal static class SelfTest
             await Runner.Run(ffmpeg, ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=4", "-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-c:v", "libx264", "-g", "120", "-pix_fmt", "yuv420p", "-c:a", "aac", "-n", video], CancellationToken.None);
             var original = await File.ReadAllBytesAsync(video); var media = await TrimPlan.Probe(tools, video, CancellationToken.None);
             foreach (var (a, b) in new[] { (double.NaN, 2.0), (-1, 2.0), (2, 1.0), (0, 5.0), (0, 0.001) }) { bool rejected = false; try { new TrimPlan(video, a, b, media).Arguments(clip); } catch (ArgumentException) { rejected = true; } Check(rejected, "Invalid trim range accepted"); }
-            var trim = new TrimPlan(video, 22.0 / 30, 2.1, media);
+            var trim = new TrimPlan(video, 0.733, 2.1, media);
             await Runner.Run(ffmpeg, trim.Arguments(clip), CancellationToken.None);
             var trimmed = await TrimPlan.Probe(tools, clip, CancellationToken.None);
             Check(Math.Abs(trimmed.Duration - trim.Duration) < media.Frame / 2, "Precise trim duration");
@@ -50,7 +50,7 @@ internal static class SelfTest
             var jpeg = Path.Combine(temp, "preview.jpg");
             await Runner.Run(ffmpeg, TrimPlan.FrameArguments(video, trim.Start, media, jpeg, 960), CancellationToken.None);
             Check(new FileInfo(jpeg).Length > 1000, "Frame preview generated");
-            var comparison = await Runner.Run(ffmpeg, ["-v", "info", "-ss", TrimPlan.Number(trim.Start), "-i", video, "-i", clip, "-lavfi", "[0:v]setpts=PTS-STARTPTS[a];[1:v]setpts=PTS-STARTPTS[b];[a][b]psnr", "-frames:v", "1", "-f", "null", "-"], CancellationToken.None);
+            var comparison = await Runner.Run(ffmpeg, ["-v", "info", "-ss", TrimPlan.Number(trim.EffectiveStart), "-i", video, "-i", clip, "-lavfi", "[0:v]setpts=PTS-STARTPTS[a];[1:v]setpts=PTS-STARTPTS[b];[a][b]psnr", "-frames:v", "1", "-f", "null", "-"], CancellationToken.None);
             var psnr = System.Text.RegularExpressions.Regex.Match(comparison, @"average:([0-9.]+)");
             Check(psnr.Success && double.Parse(psnr.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) > 35, "Export starts on selected frame");
             var after = await File.ReadAllBytesAsync(video); Check(original.SequenceEqual(after), "Original preserved");

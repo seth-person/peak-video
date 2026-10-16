@@ -27,6 +27,7 @@ public struct MediaInfo: Sendable {
         let transfer = video["color_transfer"] as? String ?? ""
         return MediaInfo(duration: duration, width: width, height: height, fps: fps, hdr: ["smpte2084", "arib-std-b67"].contains(transfer), transfer: transfer, primaries: video["color_primaries"] as? String ?? "bt2020", matrix: video["color_space"] as? String ?? "bt2020nc")
     }
+    public func snapped(_ time: Double) -> Double { time >= duration ? duration : min(duration, max(0, (time * fps).rounded() / fps)) }
     public static func probeArguments(_ input: URL) -> [String] { ["-v", "error", "-show_streams", "-show_format", "-of", "json", input.path] }
 }
 
@@ -41,7 +42,7 @@ public struct TrimPlan: Sendable {
               end - start >= min(info.frameDuration, info.duration) - 0.000001 else {
             throw PeakError.failed("Choose a start and end within the video, at least one frame apart.")
         }
-        self.input = input; self.start = start; self.end = end; self.info = info
+        self.input = input; self.start = min(info.snapped(start), max(0, info.duration - min(info.frameDuration, info.duration))); self.end = min(info.duration, max(self.start + min(info.frameDuration, info.duration), info.snapped(end))); self.info = info
     }
     public static func number(_ value: Double) -> String { String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), value) }
     public static func timecode(_ value: Double) -> String {

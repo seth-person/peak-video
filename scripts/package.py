@@ -190,7 +190,7 @@ def package(args):
     stage.mkdir()
     shutil.copytree(app, stage / "Peak.app", symlinks=True)
     (stage / "Applications").symlink_to("/Applications")
-    (stage / "Install Peak.txt").write_text(f"Peak {VERSION}\n\nRequires {'Apple Silicon' if arch == 'arm64' else 'Intel Mac'} and macOS {min_os} or later.\n\nDrag Peak to Applications, then open it.\n\nThis private build is ad-hoc signed and not Apple-notarized. If macOS blocks it, use System Settings > Privacy & Security > Open Anyway after attempting to open Peak.\n\nDownloads save to ~/Downloads/Peak by default.\n")
+    (stage / "Install Peak.txt").write_text(f"Peak {VERSION}\n\nRequires {'Apple Silicon' if arch == 'arm64' else 'Intel Mac'} and macOS {min_os} or later.\n\nDrag Peak to Applications, then open it.\n\nThis build is ad-hoc signed and not Apple-notarized. If macOS blocks it, use System Settings > Privacy & Security > Open Anyway after attempting to open Peak.\n\nDownloads save to ~/Downloads/Peak by default.\n")
     dmg = dist / f"Peak-{VERSION}-{arch}.dmg"
     if dmg.exists():
         dmg.unlink()

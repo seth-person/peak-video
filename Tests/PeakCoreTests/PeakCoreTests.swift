@@ -147,7 +147,7 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
         expectEqual(info.width, 640); expectEqual(info.height, 360); expectEqual(info.fps, 30)
         for (start, end) in [(Double.nan, 2.0), (-1, 2), (2, 1), (0, 5), (0, 0.001)] { expectThrows(try TrimPlan(input: source, start: start, end: end, info: info)) }
         expectThrows(try MediaInfo.parse("{\"streams\":[],\"format\":{\"duration\":\"1\"}}"))
-        let plan = try TrimPlan(input: source, start: 22.0 / 30, end: 2.1, info: info)
+        let plan = try TrimPlan(input: source, start: 0.733, end: 2.1, info: info)
         _ = try await runner.run(executable: ffmpeg, arguments: plan.arguments(output: clip))
         let output = try await runner.run(executable: ffprobe, arguments: MediaInfo.probeArguments(clip))
         let result = try MediaInfo.parse(output)
