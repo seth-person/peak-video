@@ -7,6 +7,7 @@ final class DownloadModel: ObservableObject {
     @Published var link = ""
     @Published var mode = QualityMode.original
     @Published var resolution = 0
+    @Published var output = OutputFormat.mp4
     @Published var directory: URL
     @Published var info: VideoInfo?
     @Published var progress: DownloadProgress?
@@ -49,7 +50,7 @@ final class DownloadModel: ObservableObject {
         guard !busy else { return }
         let plan: DownloadPlan
         do {
-            plan = try DownloadPlan(url: link, directory: directory, mode: mode, height: resolution == 0 ? nil : resolution)
+            plan = try DownloadPlan(url: link, directory: directory, mode: mode, height: resolution == 0 ? nil : resolution, output: output)
             for tool in ["yt-dlp", "ffmpeg", "ffprobe", "deno"] {
                 guard FileManager.default.isExecutableFile(atPath: tools.appendingPathComponent(tool).path) else { throw PeakError.missingTool(tool) }
             }
@@ -83,11 +84,11 @@ final class DownloadModel: ObservableObject {
                     guard let line = output.components(separatedBy: .newlines).last(where: { $0.hasPrefix("PEAK_FILE:") }),
                           let data = String(line.dropFirst("PEAK_FILE:".count)).data(using: .utf8),
                           let path = try? JSONDecoder().decode(String.self, from: data),
-                          path.lowercased().hasSuffix(".mp4"), FileManager.default.fileExists(atPath: path) else {
-                        throw PeakError.failed("The tool finished but did not report an MP4 file. Open details to review its output.")
+                          path.lowercased().hasSuffix("." + plan.output.fileExtension), FileManager.default.fileExists(atPath: path) else {
+                        throw PeakError.failed("The tool finished but did not report the expected output file. Open details to review its output.")
                     }
                     completed = URL(fileURLWithPath: path)
-                    status = "Saved in full quality"
+                    status = "Saved your \(plan.output.rawValue)"
                 }
             } catch is CancellationError {
                 status = "Cancelled — retry to resume partial downloads"
@@ -104,9 +105,9 @@ final class DownloadModel: ObservableObject {
         if let update = DownloadProgress.parse(line) {
             progress = update
             status = "Downloading · \(update.speed.trimmingCharacters(in: .whitespaces)) · \(update.eta.trimmingCharacters(in: .whitespaces)) left"
-        } else if line.contains("[Merger]") || line.contains("[VideoRemuxer]") || line.contains("[Metadata]") {
+        } else if line.contains("[Merger]") || line.contains("[VideoRemuxer]") || line.contains("[Metadata]") || line.contains("[ExtractAudio]") {
             progress = nil
-            status = "Finishing your MP4…"
+            status = "Finishing your \(output.rawValue)…"
         }
         if !line.hasPrefix("PEAK_PROGRESS:") {
             log += line + "\n"
@@ -186,6 +187,7 @@ struct ContentView: View {
         .background(canvasColor).frame(minWidth: 740, minHeight: 740)
         .onChange(of: model.link) { _, _ in model.clearPreview() }
         .onChange(of: model.mode) { _, _ in model.clearPreview() }
+        .onChange(of: model.output) { _, _ in model.clearPreview() }
         .onChange(of: model.resolution) { _, _ in model.clearPreview() }
     }
 
@@ -205,7 +207,7 @@ struct ContentView: View {
     private var hero: some View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Keep every detail.").font(.system(size: 38, weight: .bold, design: .rounded))
-                    Text("YouTube to MP4. The best available quality, saved on your Mac.")
+                    Text("YouTube to MP4, WAV or MP3. Your media, saved on your Mac.")
                         .font(.system(size: 14)).foregroundStyle(.secondary)
                 }
 
@@ -249,7 +251,13 @@ struct ContentView: View {
 
     private var settingsCard: some View {
                 VStack(alignment: .leading, spacing: 16) {
-                    eyebrow("02", "QUALITY & DESTINATION")
+                    eyebrow("02", "FORMAT & DESTINATION")
+                    Picker("Output format", selection: $model.output) {
+                        Text("MP4 · Video").tag(OutputFormat.mp4)
+                        Text("WAV · Audio").tag(OutputFormat.wav)
+                        Text("MP3 · Audio").tag(OutputFormat.mp3)
+                    }.pickerStyle(.segmented)
+                    if model.output == .mp4 {
                     HStack(alignment: .top, spacing: 12) {
                         ForEach(QualityMode.allCases) { mode in
                             Button { model.mode = mode } label: {
@@ -268,6 +276,10 @@ struct ContentView: View {
                             Text("Up to 720p").tag(720)
                         }.labelsHidden().frame(width: 230)
                     }.font(.system(size: 13))
+                    } else {
+                        Text(model.output.detail).font(.system(size: 13)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true).lineSpacing(4)
+                    }
                     Divider().opacity(0.4)
                     HStack(spacing: 10) {
                         Image(systemName: "folder").foregroundStyle(mint)
@@ -284,7 +296,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 14) {
                         Button { model.start(previewOnly: false) } label: {
-                            Label("Download MP4", systemImage: "arrow.down.to.line")
+                            Label("Download \(model.output.rawValue)", systemImage: "arrow.down.to.line")
                                 .font(.system(size: 15, weight: .bold)).frame(maxWidth: .infinity).padding(.vertical, 15)
                         }
                         .buttonStyle(.plain).background(model.busy || model.link.isEmpty ? mint.opacity(0.25) : mint, in: RoundedRectangle(cornerRadius: 12))
@@ -299,7 +311,7 @@ struct ContentView: View {
                     if model.busy {
                         if let progress = model.progress {
                             ProgressView(value: progress.fraction).tint(mint)
-                            Text("Current stream: \(Int(progress.fraction * 100))% · video and audio download separately")
+                            Text("Current stream: \(Int(progress.fraction * 100))% · \(model.output == .mp4 ? "video and audio download separately" : "audio only")")
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                         } else { ProgressView().controlSize(.small) }
                     }
@@ -312,7 +324,7 @@ struct ContentView: View {
                     if let error = model.error {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(error).font(.system(size: 12)).textSelection(.enabled)
-                            Text("If YouTube asks you to sign in or blocks a request, try again later. Peak 1.0 does not import browser cookies.")
+                            Text("If YouTube asks you to sign in or blocks a request, try again later. Peak 1.1 does not import browser cookies.")
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                         }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
@@ -330,7 +342,7 @@ struct ContentView: View {
 
     private var footer: some View {
                 HStack {
-                    Text("PEAK 1.0").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.5)
+                    Text("PEAK 1.1").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(1.5)
                     Spacer()
                     Text("Download videos you own or have permission to save.").font(.system(size: 10))
                 }.foregroundStyle(.secondary)

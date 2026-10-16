@@ -5,3 +5,5 @@ dist/
 *.ytdl
 .swiftpm/
 vendor/
+windows/**/bin/
+windows/**/obj/

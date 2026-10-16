@@ -12,6 +12,19 @@ public enum QualityMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum OutputFormat: String, CaseIterable, Identifiable, Sendable {
+    case mp4 = "MP4", wav = "WAV", mp3 = "MP3"
+    public var id: String { rawValue }
+    public var fileExtension: String { rawValue.lowercased() }
+    public var detail: String {
+        switch self {
+        case .mp4: return "Video and audio, at the best available quality."
+        case .wav: return "Best available audio decoded to uncompressed 24-bit PCM. Larger files; preserves the source sample rate. YouTube audio is already compressed, so WAV cannot restore lost detail."
+        case .mp3: return "Best available audio converted to 320 kbps MP3. Compact and widely compatible; conversion is lossy."
+        }
+    }
+}
+
 public enum PeakError: LocalizedError {
     case invalidURL, missingTool(String), failed(String), liveVideo
     public var errorDescription: String? {
@@ -29,11 +42,13 @@ public struct DownloadPlan: Sendable {
     public let directory: URL
     public let mode: QualityMode
     public let height: Int?
-    public init(url: String, directory: URL, mode: QualityMode, height: Int?) throws {
+    public let output: OutputFormat
+    public init(url: String, directory: URL, mode: QualityMode, height: Int?, output: OutputFormat = .mp4) throws {
         self.url = try Self.normalizedURL(url)
         self.directory = directory
         self.mode = mode
         self.height = height
+        self.output = output
     }
 
     public static func normalizedURL(_ input: String) throws -> String {
@@ -56,6 +71,7 @@ public struct DownloadPlan: Sendable {
     }
 
     public var format: String {
+        if output != .mp4 { return "ba/b" }
         let limit = height.map { "[height<=\($0)]" } ?? ""
         switch mode {
         case .original: return "bv\(limit)+ba/b\(limit)"
@@ -68,7 +84,7 @@ public struct DownloadPlan: Sendable {
          "--no-remote-components", "--no-js-runtimes", "--js-runtimes", "deno:\(tools.appendingPathComponent("deno").path)",
          "--ffmpeg-location", tools.path, "--socket-timeout", "20", "--retries", "5",
          "--fragment-retries", "5", "--match-filter", "!is_live & !is_upcoming", "-f", format,
-         "-S", "res,fps,hdr:12,vcodec,channels,acodec,br,size"]
+         "-S", output == .mp4 ? "res,fps,hdr:12,vcodec,channels,acodec,br,size" : "abr,asr,channels,acodec,size"]
     }
 
     public func inspectArguments(tools: URL) -> [String] {
@@ -76,11 +92,18 @@ public struct DownloadPlan: Sendable {
     }
 
     public func downloadArguments(tools: URL) -> [String] {
-        let preset = (mode == .original ? "source" : "h264") + "-" + (height.map(String.init) ?? "best")
-        return commonArguments(tools: tools) + [
+        let videoPreset = (mode == .original ? "source" : "h264") + "-" + (height.map(String.init) ?? "best")
+        let preset = output == .mp4 ? videoPreset : (output == .wav ? "wav-24bit" : "mp3-320k")
+        let conversion: [String]
+        switch output {
+        case .mp4: conversion = ["--merge-output-format", "mp4", "--remux-video", "mp4", "--embed-chapters"]
+        case .wav: conversion = ["--extract-audio", "--audio-format", "wav", "--postprocessor-args", "ExtractAudio+ffmpeg_o:-c:a pcm_s24le"]
+        case .mp3: conversion = ["--extract-audio", "--audio-format", "mp3", "--audio-quality", "320K"]
+        }
+        return commonArguments(tools: tools) + conversion + [
             "--no-simulate", "--no-quiet", "--no-overwrites", "--continue", "--windows-filenames",
-            "--concurrent-fragments", "4", "--merge-output-format", "mp4", "--remux-video", "mp4",
-            "--embed-metadata", "--embed-chapters", "--progress", "--progress-delta", "0.25",
+            "--concurrent-fragments", "4",
+            "--embed-metadata", "--progress", "--progress-delta", "0.25",
             "--progress-template", "download:PEAK_PROGRESS:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
             "--print", "after_move:PEAK_FILE:%(filepath)j",
             "-P", directory.path, "-o", "%(title).130B [%(id)s] [\(preset)].%(ext)s", "--", url

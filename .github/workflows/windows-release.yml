@@ -1,0 +1,47 @@
+name: Windows installer
+on:
+  push:
+    branches: [main]
+    paths: ['windows/**', 'scripts/package-windows.ps1', 'scripts/windows-installer.nsi', 'scripts/dependencies.json', '.github/workflows/windows-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.402'
+      - name: Install NSIS
+        run: choco install nsis --yes --no-progress
+      - name: Build and test
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Test installed application
+        shell: pwsh
+        run: |
+          $installer = Start-Process ./dist/Peak-1.1.0-windows-x64.exe '/S' -Wait -PassThru
+          if ($installer.ExitCode -ne 0) { throw 'Installation failed' }
+          $exe = "$env:LOCALAPPDATA/Programs/Peak/Peak.exe"
+          $check = Start-Process $exe '--self-test' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { Get-Content "$env:LOCALAPPDATA/Programs/Peak/self-test-error.txt"; throw 'Installed app test failed' }
+          $app = Start-Process $exe -PassThru
+          if (!$app.WaitForInputIdle(15000)) { throw 'UI startup timeout' }
+          $app.Refresh()
+          if ($app.HasExited -or $app.MainWindowTitle -ne 'Peak') { throw 'Main window did not launch' }
+          $null = $app.CloseMainWindow()
+          if (!$app.WaitForExit(10000)) { throw 'App did not close cleanly' }
+          $uninstall = Start-Process "$env:LOCALAPPDATA/Programs/Peak/Uninstall.exe" '/S' -Wait -PassThru
+          Start-Sleep -Seconds 3
+          if (Test-Path $exe) { throw 'Uninstall did not remove app' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Peak-1.1.0-windows-x64
+          path: |
+            dist/Peak-1.1.0-windows-x64.exe
+            dist/dependency-manifest-windows-x64.json
+            dist/SHA256SUMS-windows-x64.txt
+          retention-days: 14

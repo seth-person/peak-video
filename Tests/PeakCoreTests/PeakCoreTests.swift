@@ -35,6 +35,18 @@ final class PeakCoreTests {
         expectEqual(plan.format, "bv[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]/b[vcodec^=avc1][acodec^=mp4a][height<=1080]")
     }
 
+    func testAudioUsesBestAudioAndCorrectConversion() throws {
+        for output in [OutputFormat.wav, .mp3] {
+            let plan = try DownloadPlan(url: "https://youtu.be/BaW_jenozKc", directory: directory, mode: .compatible, height: 720, output: output)
+            expectEqual(plan.format, "ba/b")
+            let args = plan.downloadArguments(tools: tools)
+            expectFalse(args.contains("--remux-video"))
+            expectTrue(args.contains("--extract-audio"))
+            expectTrue(args.contains(output.fileExtension))
+            expectTrue(args.contains(output == .wav ? "ExtractAudio+ffmpeg_o:-c:a pcm_s24le" : "320K"))
+        }
+    }
+
     func testProgressRejectsUnknownAndMalformedValues() {
         expectNil(DownloadProgress.parse("PEAK_PROGRESS:Unknown|NA|NA"))
         expectNil(DownloadProgress.parse("PEAK_PROGRESS:nan|NA|NA"))
@@ -105,12 +117,13 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
         suite.testRejectsLocalFilesImpersonationAndArgumentInjection()
         try suite.testMaximumQualityHasNoCodecOrResolutionCap()
         try suite.testCompatibilityNeverFallsBackToIncompatibleCodec()
+        try suite.testAudioUsesBestAudioAndCorrectConversion()
         suite.testProgressRejectsUnknownAndMalformedValues()
         try suite.testParsesMetadataWithWarningsAndRejectsLive()
         try await suite.testProcessArgumentsArePassedLiterally()
         await suite.testProcessFailurePropagatesAndPreCancellationWorks()
         await suite.testCancellationStopsAnActiveProcess()
-        print("9 test groups completed; \(failures) failures")
+        print("10 test groups completed; \(failures) failures")
         if failures > 0 { exit(1) }
         if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "--integration" {
             try await integration(tools: URL(fileURLWithPath: CommandLine.arguments[2]), directory: URL(fileURLWithPath: CommandLine.arguments[3]))
@@ -119,8 +132,8 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
 
     static func integration(tools: URL, directory: URL) async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for mode in QualityMode.allCases {
-            let plan = try DownloadPlan(url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", directory: directory, mode: mode, height: nil)
+        for (mode, outputFormat) in [(QualityMode.original, OutputFormat.mp4), (.compatible, .mp4), (.original, .wav), (.original, .mp3)] {
+            let plan = try DownloadPlan(url: "https://www.youtube.com/watch?v=jNQXAC9IVRw", directory: directory, mode: mode, height: nil, output: outputFormat)
             let runner = ProcessRunner()
             let metadata = try await runner.run(executable: tools.appendingPathComponent("yt-dlp"), arguments: plan.inspectArguments(tools: tools))
             let info = try VideoInfo.parse(metadata)
@@ -133,12 +146,19 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
             }
             let data = Data(marker.dropFirst("PEAK_FILE:".count).utf8)
             let file = try JSONDecoder().decode(String.self, from: data)
-            guard file.hasSuffix(".mp4"), FileManager.default.fileExists(atPath: file) else { throw PeakError.failed("MP4 missing") }
+            guard file.hasSuffix("." + outputFormat.fileExtension), FileManager.default.fileExists(atPath: file) else { throw PeakError.failed("Output missing") }
             let probe = try await runner.run(executable: tools.appendingPathComponent("ffprobe"), arguments: ["-v", "error", "-show_streams", "-show_format", "-of", "json", file])
             let object = try JSONSerialization.jsonObject(with: Data(probe.utf8)) as! [String: Any]
             let streams = object["streams"] as! [[String: Any]]
             let video = streams.first(where: { $0["codec_type"] as? String == "video" })
             let audio = streams.first(where: { $0["codec_type"] as? String == "audio" })
+            if outputFormat != .mp4 {
+                expectNil(video)
+                expectEqual(audio?["codec_name"] as? String, outputFormat == .wav ? "pcm_s24le" : "mp3")
+                if outputFormat == .mp3 { expectEqual(audio?["bit_rate"] as? String, "320000") }
+                print("Verified audio: \(outputFormat.rawValue)")
+                continue
+            }
             guard video != nil, audio != nil else { throw PeakError.failed("Missing audio or video stream") }
             expectEqual(video?["height"] as? Int, info.height)
             if mode == .compatible {
@@ -148,6 +168,6 @@ private func expectThrows<T>(_ expression: @autoclosure () throws -> T, _ messag
             print("Verified MP4: \(video?["codec_name"] ?? "?") + \(audio?["codec_name"] ?? "?")")
         }
         if failures > 0 { exit(1) }
-        print("Both quality modes passed real YouTube → MP4 integration checks.")
+        print("MP4 quality modes, WAV and MP3 passed real YouTube integration checks.")
     }
 }
