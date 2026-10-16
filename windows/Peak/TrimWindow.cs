@@ -55,7 +55,7 @@ internal sealed class TrimWindow : Form
         Button Button(string text, Action action) { var b = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat }; b.Click += (_, _) => action(); return b; }
         transport.Controls.Add(Button("◀ Frame", () => Seek(playhead - (info?.Frame ?? 0))));
         transport.Controls.Add(Button("Frame ▶", () => Seek(playhead + (info?.Frame ?? 0))));
-        time.Width = 145; time.Padding = new Padding(8); transport.Controls.Add(time);
+        time.Width = 145; time.Height = 32; time.Padding = new Padding(8, 5, 0, 0); transport.Controls.Add(time);
         transport.Controls.Add(Button("Set start here", () => SetStart(playhead)));
         transport.Controls.Add(Button("Set end here", () => SetEnd(playhead + (info?.Frame ?? 0))));
         Add(transport, 46); Add(timeline, 100);
@@ -93,6 +93,7 @@ internal sealed class TrimWindow : Form
             }
             if (exportCancellation is null) status.Text = "Drag the handles to trim. Click the timeline to inspect a frame.";
             if (smoke) {
+                if (time.ClientSize.Height - time.Padding.Vertical < time.Font.Height) throw new Exception("Playhead time label is clipped");
                 using var bitmap = new Bitmap(Width, Height); DrawToBitmap(bitmap, new Rectangle(Point.Empty, Size)); bitmap.Save(Path.Combine(AppContext.BaseDirectory, "trim-ui-preview.png"));
                 File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "trim-ui-test-passed.txt"), "Timeline thumbnails and frame preview rendered."); Close();
             }
